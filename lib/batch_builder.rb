@@ -8,25 +8,32 @@ class BatchBuilder
 
   def initialize
     @items = []
+    @current_size = 2  # "[]" empty array
   end
 
   def push(product_hash)
     payloads = []
 
-    tentative = @items + [product_hash]
-    if json_size(tentative) < MAX_BATCH_SIZE
+    item_json = JSON.generate(product_hash)
+    item_size = item_json.bytesize
+    tentative_size = @current_size + item_size + (@items.empty? ? 0 : 1)  # +1 for comma
+
+    if tentative_size < MAX_BATCH_SIZE
       @items << product_hash
+      @current_size = tentative_size
       return payloads
     end
 
     flushed = finalize
     payloads << flushed if flushed
 
-    if json_size([product_hash]) < MAX_BATCH_SIZE
+    if item_size + 2 < MAX_BATCH_SIZE
       @items = [product_hash]
+      @current_size = item_size + 2
     else
       warn "Item #{product_hash[:id]} exceeds 5MB limit alone — ignored."
       @items = []
+      @current_size = 2
     end
 
     payloads
@@ -37,12 +44,7 @@ class BatchBuilder
 
     json = JSON.generate(@items)
     @items = []
+    @current_size = 2
     json
-  end
-
-  private
-
-  def json_size(array)
-    JSON.generate(array).bytesize
   end
 end

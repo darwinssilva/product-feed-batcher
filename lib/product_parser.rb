@@ -14,24 +14,26 @@ class ProductParser
   def stream
     return to_enum(__method__) unless block_given?
 
-    File.open(@xml_path) do |file|
-      Nokogiri::XML::Reader(file).each do |node|
-        next unless node.node_type == Nokogiri::XML::Reader::TYPE_ELEMENT && node.name == "item"
+    doc = File.open(@xml_path) { |f| Nokogiri::XML(f) }
 
-        item_doc = Nokogiri::XML(node.outer_xml)
+    doc.css("item").each do |item|
+      id = title = desc = nil
 
-        id_node    = item_doc.at_xpath("//item/g:id", G_NS)
-        title_node = item_doc.at_xpath("//item/title")
-        desc_node  = item_doc.at_xpath("//item/description")
-
-        id    = id_node&.text&.strip
-        title = title_node&.text&.strip
-        desc  = desc_node ? CGI.unescapeHTML(desc_node.text.to_s.strip) : nil
-
-        next if id.to_s.empty? || title.to_s.empty?
-
-        yield Product.new(id: id, title: title, description: desc)
+      item.element_children.each do |child|
+        case child.name
+        when "id"
+          id = child.text.strip
+        when "title"
+          title = child.text.strip
+        when "description"
+          desc = child.text.strip
+        end
       end
+
+      next if id.to_s.empty? || title.to_s.empty?
+
+      desc = CGI.unescapeHTML(desc) if desc
+      yield Product.new(id: id, title: title, description: desc)
     end
   end
 end
